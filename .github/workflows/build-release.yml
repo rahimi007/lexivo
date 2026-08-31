@@ -26,7 +26,7 @@ jobs:
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
           else
-            echo "ERROR: gradlew not found. Commit the Gradle wrapper (gradlew, gradlew.bat and gradle/wrapper/gradle-wrapper.jar)." >&2
+            echo "ERROR: gradlew not found. Commit the Gradle wrapper (gradlew, gradlew.bat, gradle/wrapper/gradle-wrapper.jar)." >&2
             exit 1
           fi
 
@@ -35,23 +35,20 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           mkdir -p ./.keystore
-          # use printf to avoid extra newline expansion
           printf "%s" "${KEYSTORE_BASE64}" | base64 --decode > ./.keystore/release.jks
           chmod 600 ./.keystore/release.jks
 
       - name: Build signed Release APK
         env:
-          # Point the build to the reconstructed keystore and pass passwords/alias from repository secrets
           KEYSTORE_PATH: ${{ github.workspace }}/.keystore/release.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
+          # use the project's Gradle wrapper so Gradle version is consistent
           ./gradlew clean assembleRelease --no-daemon --warning-mode all
 
-      - name: Verify APK signing
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+      - name: Verify APK signing (apksigner if available)
         run: |
           APK_PATH="app/build/outputs/apk/release/app-release.apk"
           if [ ! -f "$APK_PATH" ]; then
@@ -59,19 +56,11 @@ jobs:
             ls -R app/build/outputs || true
             exit 1
           fi
-          echo "Using apksigner from the newest build-tools available"
-          BUILD_TOOLS_DIR="$ANDROID_SDK_ROOT/build-tools"
-          if [ -d "$BUILD_TOOLS_DIR" ]; then
-            BUILD_TOOLS_VERSION=$(ls "$BUILD_TOOLS_DIR" | sort -V | tail -n1)
-            APKSIGNER="$BUILD_TOOLS_DIR/$BUILD_TOOLS_VERSION/apksigner"
+          # Try to locate apksigner (part of Android build-tools)
+          if command -v apksigner >/dev/null 2>&1; then
+            apksigner verify --print-certs "$APK_PATH"
           else
-            # Fallback: try to find apksigner on PATH
-            APKSIGNER=$(which apksigner || true)
-          fi
-          if [ -z "$APKSIGNER" ] || [ ! -x "$APKSIGNER" ]; then
-            echo "apksigner not found; skipping signature verification step" >&2
-          else
-            "$APKSIGNER" verify --print-certs "$APK_PATH"
+            echo "apksigner not found; skipping signature verification"
           fi
 
       - name: Upload Release APK artifact
