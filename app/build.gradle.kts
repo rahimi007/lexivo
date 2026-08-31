@@ -23,25 +23,34 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
-  val hasReleaseSigningEnv = !System.getenv("ANDROID_KEYSTORE_PATH").isNullOrEmpty() &&
-      !System.getenv("ANDROID_KEYSTORE_PASSWORD").isNullOrEmpty() &&
-      !System.getenv("ANDROID_KEY_ALIAS").isNullOrEmpty() &&
-      !System.getenv("ANDROID_KEY_PASSWORD").isNullOrEmpty()
+  val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH") ?: System.getenv("KEYSTORE_PATH")
+  val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD") ?: System.getenv("STORE_PASSWORD")
+  val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: System.getenv("KEY_ALIAS")
+  val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: System.getenv("KEY_PASSWORD")
+
+  val hasReleaseSigningEnv = !releaseKeystorePath.isNullOrEmpty() &&
+      !releaseKeystorePassword.isNullOrEmpty() &&
+      !releaseKeyAlias.isNullOrEmpty() &&
+      !releaseKeyPassword.isNullOrEmpty()
+
+  val debugKeystoreFile = file("${rootDir}/debug.keystore")
 
   signingConfigs {
     if (hasReleaseSigningEnv) {
       create("release") {
-        storeFile = file(System.getenv("ANDROID_KEYSTORE_PATH"))
-        storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-        keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-        keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+        storeFile = file(releaseKeystorePath!!)
+        storePassword = releaseKeystorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
       }
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+    if (debugKeystoreFile.exists()) {
+      create("debugConfig") {
+        storeFile = debugKeystoreFile
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
@@ -54,7 +63,11 @@ android {
         signingConfig = signingConfigs.getByName("release")
       }
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug {
+      if (debugKeystoreFile.exists()) {
+        signingConfig = signingConfigs.getByName("debugConfig")
+      }
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
