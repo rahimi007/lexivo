@@ -32,21 +32,34 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH") ?: System.getenv("KEYSTORE_PATH")
+  val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD") ?: System.getenv("STORE_PASSWORD")
+  val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: System.getenv("KEY_ALIAS")
+  val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: System.getenv("KEY_PASSWORD")
+
+  val hasReleaseSigningEnv = !releaseKeystorePath.isNullOrEmpty() &&
+      !releaseKeystorePassword.isNullOrEmpty() &&
+      !releaseKeyAlias.isNullOrEmpty() &&
+      !releaseKeyPassword.isNullOrEmpty()
+
+  val debugKeystoreFile = file("${rootDir}/debug.keystore")
+
   signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      // Read keystore password from KEYSTORE_PASSWORD (preferred) or fallback to STORE_PASSWORD if set
-      storePassword = System.getenv("KEYSTORE_PASSWORD") ?: System.getenv("STORE_PASSWORD")
-      // Allow the alias to be provided via env KEY_ALIAS; fallback to previous hard-coded value for compatibility
-      keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+    if (hasReleaseSigningEnv) {
+      create("release") {
+        storeFile = file(releaseKeystorePath!!)
+        storePassword = releaseKeystorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+    if (debugKeystoreFile.exists()) {
+      create("debugConfig") {
+        storeFile = debugKeystoreFile
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
@@ -55,9 +68,15 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      if (hasReleaseSigningEnv) {
+        signingConfig = signingConfigs.getByName("release")
+      }
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug {
+      if (debugKeystoreFile.exists()) {
+        signingConfig = signingConfigs.getByName("debugConfig")
+      }
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
