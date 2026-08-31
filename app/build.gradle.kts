@@ -4,9 +4,18 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
-  alias(libs.plugins.roborazzi)
+  // Do NOT apply the Roborazzi Gradle plugin on CI runners where IDE services are not available.
+  // The plugin is useful for local snapshot testing but can trigger IntelliJ Application APIs
+  // that are not initialized in headless Gradle environments (causing NPEs).
+  // alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
+}
+
+// Apply the Roborazzi plugin only when not running on CI (i.e., local/dev machines).
+// GitHub Actions sets the CI environment variable to "true"; skip applying Roborazzi there.
+if (System.getenv("CI") != "true") {
+  pluginManager.apply("io.github.takahirom.roborazzi")
 }
 
 android {
