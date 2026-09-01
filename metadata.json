@@ -1,5 +1,5 @@
 {
-  "name": "Lexicon",
+  "name": "Lexivo",
   "description": "A vocabulary learning app",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

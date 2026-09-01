@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Lexicon"
+rootProject.name = "Lexivo"
 
 include(":app")
