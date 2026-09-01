@@ -36,6 +36,7 @@ fun SettingsScreen(navController: NavController, viewModel: LexiconViewModel) {
     val currentGoal by viewModel.weeklyGoal.collectAsState()
     val context = LocalContext.current
     var showImportWarning by remember { mutableStateOf(false) }
+    var isAddMode by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri?.let {
@@ -66,7 +67,7 @@ fun SettingsScreen(navController: NavController, viewModel: LexiconViewModel) {
                         }
                     }
                     if (json != null) {
-                        val success = viewModel.importData(json)
+                        val success = viewModel.importData(json, isAddMode)
                         if (success) {
                             Toast.makeText(context, "Import successful", Toast.LENGTH_SHORT).show()
                         } else {
@@ -96,6 +97,9 @@ fun SettingsScreen(navController: NavController, viewModel: LexiconViewModel) {
     val gapgptModel by viewModel.gapgptModel.collectAsState()
     
     val homeWordOrder by viewModel.homeWordOrder.collectAsState()
+    val showPersianPronunciation by viewModel.showPersianPronunciation.collectAsState()
+    val defaultVocabularyInput by viewModel.defaultVocabularyInput.collectAsState()
+    var defaultInputExpanded by remember { mutableStateOf(false) }
     
     var showCustomDialog by remember { mutableStateOf(false) }
     var customGoalInput by remember { mutableStateOf("") }
@@ -252,6 +256,31 @@ fun SettingsScreen(navController: NavController, viewModel: LexiconViewModel) {
                             }
                         }
                     }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            // Persian Pronunciation Section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFCFBF8)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Persian pronunciation", style = MaterialTheme.typography.bodyLarge)
+                    }
+                    Switch(
+                        checked = showPersianPronunciation,
+                        onCheckedChange = { viewModel.updateShowPersianPronunciation(it) },
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
                 }
             }
             
@@ -459,6 +488,57 @@ fun SettingsScreen(navController: NavController, viewModel: LexiconViewModel) {
             }
             Spacer(modifier = Modifier.height(16.dp))
 
+            
+            // Default Vocabulary Input Section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFCFBF8)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { defaultInputExpanded = !defaultInputExpanded }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Default vocabulary input", style = MaterialTheme.typography.bodyLarge)
+                            Text(defaultVocabularyInput, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(
+                            imageVector = if (defaultInputExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                            contentDescription = if (defaultInputExpanded) "Collapse" else "Expand"
+                        )
+                    }
+                    
+                    AnimatedVisibility(visible = defaultInputExpanded) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            val inputOptions = listOf("Copy & Paste", "AI")
+                            inputOptions.forEach { inputOption ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { viewModel.updateDefaultVocabularyInput(inputOption) }
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = (defaultVocabularyInput == inputOption),
+                                        onClick = { viewModel.updateDefaultVocabularyInput(inputOption) }
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text(inputOption, style = MaterialTheme.typography.bodyLarge)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            
             Text("DATA", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, bottom = 8.dp))
             // Export Section
             Card(
@@ -513,21 +593,62 @@ fun SettingsScreen(navController: NavController, viewModel: LexiconViewModel) {
                     )
                 }
             }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text("HELP", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, bottom = 8.dp))
+            // Help & Guide Section
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { navController.navigate("help") },
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFCFBF8)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Help & Guide", style = MaterialTheme.typography.bodyLarge)
+                        Text("Learn how to use the app", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Help"
+                    )
+                }
+            }
         }
         
         if (showImportWarning) {
             AlertDialog(
                 onDismissRequest = { showImportWarning = false },
                 title = { Text("Import Backup") },
-                text = { Text("Importing a backup will replace your current vocabulary, collections, and progress. Your API settings will not be affected.\n\nAre you sure you want to proceed?") },
+                text = { Text("How would you like to import this backup?\n\nADD:\nKeep your existing vocabulary and add the new words from the backup.\n\nREPLACE:\nDelete your existing vocabulary and replace it entirely with the backup.") },
                 confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showImportWarning = false
-                            importLauncher.launch(arrayOf("application/json"))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                isAddMode = true
+                                showImportWarning = false
+                                importLauncher.launch(arrayOf("application/json"))
+                            }
+                        ) {
+                            Text("Add")
                         }
-                    ) {
-                        Text("Import", color = MaterialTheme.colorScheme.error)
+                        TextButton(
+                            onClick = {
+                                isAddMode = false
+                                showImportWarning = false
+                                importLauncher.launch(arrayOf("application/json"))
+                            }
+                        ) {
+                            Text("Replace", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 },
                 dismissButton = {

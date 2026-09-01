@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 @Composable
 fun MainScreen(navController: NavController, viewModel: LexiconViewModel) {
     val feedWords by viewModel.feedWords.collectAsState()
+    val showPersianPronunciation by viewModel.showPersianPronunciation.collectAsState()
     var selectedWord by remember { mutableStateOf<WordEntity?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
@@ -229,6 +230,7 @@ fun MainScreen(navController: NavController, viewModel: LexiconViewModel) {
             ) { page ->
                 WordCard(
                     word = feedWords[page],
+                    showPersianPronunciation = showPersianPronunciation,
                     onMoreClick = { selectedWord = feedWords[page] },
                     onShareClick = {
                         val word = feedWords[page]
@@ -261,6 +263,7 @@ fun MainScreen(navController: NavController, viewModel: LexiconViewModel) {
 @Composable
 fun WordCard(
     word: WordEntity, 
+    showPersianPronunciation: Boolean = true,
     onMoreClick: () -> Unit,
     onShareClick: () -> Unit,
     onFavoriteClick: () -> Unit,
@@ -331,8 +334,13 @@ fun WordCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
+                    val displayPronunciation = if (showPersianPronunciation) {
+                        it.replace("\r\n", "  ").replace("\n", "  ")
+                    } else {
+                        it.substringBefore("\n").substringBefore("\r")
+                    }
                     Text(
-                        text = it,
+                        text = displayPronunciation,
                         style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.padding(end = 8.dp)

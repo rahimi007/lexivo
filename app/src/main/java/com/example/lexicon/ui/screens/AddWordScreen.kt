@@ -26,7 +26,16 @@ fun AddWordScreen(navController: NavController, viewModel: LexiconViewModel) {
     var resultMessage by remember { mutableStateOf<String?>(null) }
     var isGenerating by remember { mutableStateOf(false) }
     
-    var selectedMode by remember { mutableStateOf(0) } // 0 = Copy & Paste, 1 = AI Generate
+    val defaultInputMode by viewModel.defaultVocabularyInput.collectAsState()
+    var selectedMode by remember { mutableIntStateOf(0) }
+    var hasInitializedMode by remember { mutableStateOf(false) }
+
+    LaunchedEffect(defaultInputMode) {
+        if (!hasInitializedMode && defaultInputMode.isNotEmpty()) {
+            selectedMode = if (defaultInputMode == "AI") 1 else 0
+            hasInitializedMode = true
+        }
+    }
     val modes = listOf("Copy & Paste", "AI Generate")
     
     // Duplicate word dialog state

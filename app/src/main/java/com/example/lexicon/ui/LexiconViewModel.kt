@@ -66,6 +66,8 @@ class LexiconViewModel(
     val homeWordOrder = settingsRepository.homeWordOrder.stateIn(viewModelScope, SharingStarted.Lazily, "Random")
 
     val customAiPrompt = settingsRepository.customAiPrompt.stateIn(viewModelScope, SharingStarted.Lazily, SettingsRepository.DEFAULT_PROMPT)
+    val showPersianPronunciation = settingsRepository.showPersianPronunciation.stateIn(viewModelScope, SharingStarted.Lazily, true)
+    val defaultVocabularyInput = settingsRepository.defaultVocabularyInput.stateIn(viewModelScope, SharingStarted.Lazily, "Copy & Paste")
     
     private val randomSeed = kotlin.random.Random.nextInt()
     
@@ -309,6 +311,8 @@ class LexiconViewModel(
     }
 
     fun updateHomeWordOrder(order: String) { viewModelScope.launch { settingsRepository.setHomeWordOrder(order) } }
+    fun updateShowPersianPronunciation(show: Boolean) { viewModelScope.launch { settingsRepository.setShowPersianPronunciation(show) } }
+    fun updateDefaultVocabularyInput(input: String) { viewModelScope.launch { settingsRepository.setDefaultVocabularyInput(input) } }
 
     fun updateCustomAiPrompt(prompt: String) { viewModelScope.launch { settingsRepository.setCustomAiPrompt(prompt) } }
 
@@ -363,11 +367,10 @@ class LexiconViewModel(
                     )
                 }
                 "GapGPT" -> {
-                    testGenericOpenAIEndpoint(
+                    testGapGPTEndpoint(
                         url = "https://api.gapgpt.app/v1/chat/completions",
                         key = gapgptApiKey.first(),
-                        model = gapgptModel.first(),
-                        providerName = "GapGPT"
+                        model = gapgptModel.first()
                     )
                 }
                 else -> { // Gemini
@@ -475,7 +478,7 @@ class LexiconViewModel(
                     )
                 }
                 "GapGPT" -> {
-                    generateGenericOpenAI(
+                    generateGapGPT(
                         url = "https://api.gapgpt.app/v1/chat/completions",
                         key = gapgptApiKey.first(),
                         model = gapgptModel.first(),
@@ -553,32 +556,125 @@ class LexiconViewModel(
         }
     }
 
-    suspend fun importData(json: String): Boolean {
+    suspend fun importData(json: String, isAddMode: Boolean): Boolean {
         return withContext(Dispatchers.IO) {
             try {
                 val moshi = Moshi.Builder().build()
                 val adapter = moshi.adapter(AppBackup::class.java)
                 val backup = adapter.fromJson(json) ?: return@withContext false
                 
-                repository.deleteAll()
-                repository.insertAll(backup.words)
-                
-                settingsRepository.setDailyGoal(backup.settings.dailyGoal)
-                settingsRepository.setStreak(backup.settings.streak)
-                settingsRepository.setLastLearningDay(backup.settings.lastLearningDay)
-                settingsRepository.setWeeklyGoal(backup.settings.weeklyGoal)
-                settingsRepository.setCurrentWeekLearned(backup.settings.currentWeekLearned)
-                settingsRepository.setCurrentWeekStart(backup.settings.currentWeekStart)
-                backup.settings.currentWeekNumber?.let { settingsRepository.setCurrentWeekNumber(it) }
-                settingsRepository.setPreviousWeeksSummary(backup.settings.previousWeeksSummary)
-                backup.settings.homeWordOrder?.let { settingsRepository.setHomeWordOrder(it) }
-                settingsRepository.setCustomAiPrompt(backup.settings.customAiPrompt)
+                if (isAddMode) {
+                    val existingWords = repository.allWords.first().associateBy { it.word }
+                    val wordsToInsert = backup.words.filter { !existingWords.containsKey(it.word) }
+                        .map { it.copy(id = 0) } // Reset ID to let Room auto-generate
+                    if (wordsToInsert.isNotEmpty()) {
+                        repository.insertAll(wordsToInsert)
+                    }
+                } else {
+                    repository.deleteAll()
+                    repository.insertAll(backup.words)
+                    
+                    settingsRepository.setDailyGoal(backup.settings.dailyGoal)
+                    settingsRepository.setStreak(backup.settings.streak)
+                    settingsRepository.setLastLearningDay(backup.settings.lastLearningDay)
+                    settingsRepository.setWeeklyGoal(backup.settings.weeklyGoal)
+                    settingsRepository.setCurrentWeekLearned(backup.settings.currentWeekLearned)
+                    settingsRepository.setCurrentWeekStart(backup.settings.currentWeekStart)
+                    backup.settings.currentWeekNumber?.let { settingsRepository.setCurrentWeekNumber(it) }
+                    settingsRepository.setPreviousWeeksSummary(backup.settings.previousWeeksSummary)
+                    backup.settings.homeWordOrder?.let { settingsRepository.setHomeWordOrder(it) }
+                    settingsRepository.setCustomAiPrompt(backup.settings.customAiPrompt)
+                }
                 
                 true
             } catch (e: Exception) {
                 e.printStackTrace()
                 false
             }
+        }
+    }
+
+    private suspend fun testGapGPTEndpoint(url: String, key: String, model: String): String {
+        if (key.isBlank()) return "Error: API Key is empty"
+        return try {
+            val client = OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
+            val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val requestBody = JSONObject()
+                .put("model", model)
+                .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "Hello, respond with a short greeting.")))
+                .toString().toRequestBody(jsonMediaType)
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer $key")
+                .post(requestBody)
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    "Success: Connected to GapGPT API"
+                } else {
+                    val errorBody = response.body?.string() ?: ""
+                    var errorMsg = "HTTP ${response.code} ${response.message}"
+                    try {
+                        val errObj = JSONObject(errorBody)
+                        if (errObj.has("error")) {
+                            val errStr = errObj.optJSONObject("error")?.optString("message") ?: errObj.optString("error")
+                            if (errStr.isNotBlank()) errorMsg = "Error: $errStr"
+                        }
+                    } catch (e: Exception) {}
+                    errorMsg
+                }
+            }
+        } catch (e: Exception) {
+            "Error: ${e.message}"
+        }
+    }
+
+    private suspend fun generateGapGPT(url: String, key: String, model: String, finalPrompt: String): Result<String> {
+        if (key.isBlank()) return Result.failure(Exception("API Key is missing. Please configure it in Settings."))
+        return try {
+            val client = OkHttpClient.Builder().connectTimeout(60, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
+            val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val requestBody = JSONObject()
+                .put("model", model)
+                .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", finalPrompt)))
+                .toString().toRequestBody(jsonMediaType)
+
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer $key")
+                .post(requestBody)
+                .build()
+            
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val responseData = response.body?.string()
+                    if (responseData != null) {
+                        val jsonObj = JSONObject(responseData)
+                        val choices = jsonObj.optJSONArray("choices")
+                        if (choices != null && choices.length() > 0) {
+                            val message = choices.getJSONObject(0).optJSONObject("message")
+                            if (message != null) {
+                                val aiText = message.optString("content", "")
+                                return@use Result.success(aiText)
+                            }
+                        }
+                    }
+                    Result.failure(Exception("Invalid response format from AI."))
+                } else {
+                    val errorBody = response.body?.string() ?: ""
+                    var errorMsg = "HTTP ${response.code}: ${response.message}"
+                    try {
+                        val errObj = JSONObject(errorBody)
+                        if (errObj.has("error")) {
+                            val errStr = errObj.optJSONObject("error")?.optString("message") ?: errObj.optString("error")
+                            if (errStr.isNotBlank()) errorMsg = errStr
+                        }
+                    } catch (e: Exception) {}
+                    Result.failure(Exception(errorMsg))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 }

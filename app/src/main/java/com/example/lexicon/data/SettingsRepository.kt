@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -434,6 +435,8 @@ Now generate the complete vocabulary entry."""
 
     private val HOME_WORD_ORDER = stringPreferencesKey("home_word_order")
     private val CUSTOM_AI_PROMPT = stringPreferencesKey("custom_ai_prompt")
+    private val PERSIAN_PRONUNCIATION = booleanPreferencesKey("persian_pronunciation")
+    private val DEFAULT_VOCABULARY_INPUT = stringPreferencesKey("default_vocabulary_input")
 
     val dailyGoal: Flow<Int> = context.dataStore.data.map { it[DAILY_GOAL] ?: 5 }
     val streak: Flow<Int> = context.dataStore.data.map { it[STREAK] ?: 0 }
@@ -462,6 +465,8 @@ Now generate the complete vocabulary entry."""
     val homeWordOrder: Flow<String> = context.dataStore.data.map { it[HOME_WORD_ORDER] ?: "Random" }
 
     val customAiPrompt: Flow<String> = context.dataStore.data.map { it[CUSTOM_AI_PROMPT] ?: DEFAULT_PROMPT }
+    val showPersianPronunciation: Flow<Boolean> = context.dataStore.data.map { it[PERSIAN_PRONUNCIATION] ?: true }
+    val defaultVocabularyInput: Flow<String> = context.dataStore.data.map { it[DEFAULT_VOCABULARY_INPUT] ?: "Copy & Paste" }
 
     suspend fun setDailyGoal(goal: Int) { context.dataStore.edit { it[DAILY_GOAL] = goal } }
     suspend fun setStreak(streak: Int) { context.dataStore.edit { it[STREAK] = streak } }
@@ -488,4 +493,6 @@ Now generate the complete vocabulary entry."""
     suspend fun setHomeWordOrder(order: String) { context.dataStore.edit { it[HOME_WORD_ORDER] = order } }
 
     suspend fun setCustomAiPrompt(prompt: String) { context.dataStore.edit { it[CUSTOM_AI_PROMPT] = prompt } }
+    suspend fun setShowPersianPronunciation(show: Boolean) { context.dataStore.edit { it[PERSIAN_PRONUNCIATION] = show } }
+    suspend fun setDefaultVocabularyInput(input: String) { context.dataStore.edit { it[DEFAULT_VOCABULARY_INPUT] = input } }
 }

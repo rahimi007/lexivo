@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
                         composable("needs_review") { NeedsReviewScreen(navController, viewModel) }
                         composable("daily_challenge") { DailyChallengeScreen(navController, viewModel) }
                         composable("stats") { StatsScreen(navController, viewModel) }
+                        composable("help") { com.example.lexicon.ui.screens.HelpScreen(navController) }
                     }
                 }
             }
